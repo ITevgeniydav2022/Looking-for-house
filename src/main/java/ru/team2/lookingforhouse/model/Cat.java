@@ -14,7 +14,7 @@ import javax.persistence.Id;
  */
 
 /** Replace class with a table in the database */
-@Entity
+@Entity(name = "catDataTable")
 
 /** Generates an all-args constructor. */
 @AllArgsConstructor
@@ -27,15 +27,10 @@ import javax.persistence.Id;
  * and @RequiredArgsConstructor together
  */
 @Data
-public class Cat extends Animal{
+public class Cat{
 
 	/** Hibernate will look at the names and types of fields.*/
 	@Id
-
-	/** Hibernate delegates the installation of the ID to the database level */
-	@GeneratedValue
-
-	/** "ID" field*/
 	private Long id;
 
 
