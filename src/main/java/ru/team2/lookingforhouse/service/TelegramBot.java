@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -19,9 +21,12 @@ import ru.team2.lookingforhouse.model.UserCat;
 import ru.team2.lookingforhouse.model.UserDog;
 import ru.team2.lookingforhouse.repository.UserCatRepository;
 import ru.team2.lookingforhouse.repository.UserDogRepository;
+import ru.team2.lookingforhouse.util.UserStatus;
 
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +76,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             String messageText = update.getMessage().getText();
             String userName = update.getMessage().getChat().getFirstName();
             long chatId = update.getMessage().getChatId();
+
+            if (update.getMessage().getPhoto() != null && update.getMessage() != null){
+                getReport(update);
+            }
 
             switch (messageText) {
 //                При выполнении команды старт Бот приветствует пользователя и предлагает ему выбрать,
@@ -911,12 +920,13 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     public void getReport(Update update) {
+        long chatId = update.getMessage().getChatId();
         Pattern pattern = Pattern.compile(REGEX_MESSAGE);
         Matcher matcher = pattern.matcher(update.getMessage().getCaption());
-        if (matcher.matches()) {
-            String ration = matcher.group(3);
-            String health = matcher.group(7);
-            String habits = matcher.group(11);
+        if (matcher.find()) {
+            sendMessage(chatId,"Отчет принят");
+        } else {
+            sendMessage(chatId, "Некоррекнтный отчет");
         }
     }
 }
