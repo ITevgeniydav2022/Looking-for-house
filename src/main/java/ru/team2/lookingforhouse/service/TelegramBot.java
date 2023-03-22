@@ -23,6 +23,7 @@ import ru.team2.lookingforhouse.repository.UserCatRepository;
 import ru.team2.lookingforhouse.repository.UserDogRepository;
 import ru.team2.lookingforhouse.util.UserStatus;
 
+import java.time.LocalDateTime;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -838,7 +839,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             userCat.setChatId(chatId);
             userCat.setFirstName(chat.getFirstName());
             userCat.setLastName(chat.getLastName());
-            userCat.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
+            userCat.setRegisteredAt(LocalDateTime.now());
 //            по умолчанию каждый пользователь заносится в таблицу, как просто обычный пользователь,
 //            статус, в дальнейшем, может поменять волонтёр вручную
             userCat.setUserStatus(JUST_USER);
@@ -864,7 +865,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             userDog.setChatId(chatId);
             userDog.setFirstName(chat.getFirstName());
             userDog.setLastName(chat.getLastName());
-            userDog.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
+            userDog.setRegisteredAt(LocalDateTime.now());
 //            по умолчанию каждый пользователь заносится в таблицу, как просто обычный пользователь,
 //            статус, в дальнейшем, может поменять волонтёр вручную
             userDog.setUserStatus(JUST_USER);
