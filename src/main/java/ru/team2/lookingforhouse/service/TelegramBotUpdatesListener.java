@@ -1,12 +1,15 @@
 package ru.team2.lookingforhouse.service;
 
+import com.pengrad.telegrambot.TelegramBot;
+import com.pengrad.telegrambot.model.File;
+import com.pengrad.telegrambot.request.GetFile;
+import com.pengrad.telegrambot.response.GetFileResponse;
 import com.vdurmont.emoji.EmojiParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.TelegramBotsApi;
-import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -17,18 +20,16 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.team2.lookingforhouse.config.BotConfig;
+import ru.team2.lookingforhouse.model.ReportData;
 import ru.team2.lookingforhouse.model.UserCat;
 import ru.team2.lookingforhouse.model.UserDog;
+import ru.team2.lookingforhouse.repository.ReportDataRepository;
 import ru.team2.lookingforhouse.repository.UserCatRepository;
 import ru.team2.lookingforhouse.repository.UserDogRepository;
-import ru.team2.lookingforhouse.util.UserStatus;
 
 import java.time.LocalDateTime;
 import java.io.IOException;
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,17 +38,26 @@ import static ru.team2.lookingforhouse.util.UserStatus.*;
 
 @Slf4j
 @Component
-public class TelegramBot extends TelegramLongPollingBot {
+public class TelegramBotUpdatesListener extends TelegramLongPollingBot {
 
     private final UserCatRepository userCatRepository;
     private final UserDogRepository userDogRepository;
     final BotConfig config;
+    private long daysOfReports;
+
+    private TelegramBot telegramBot;
+    @Autowired
+    private ReportDataService reportDataService;
+    @Autowired
+    private ReportDataRepository reportRepository;
 
     @Autowired
-    public TelegramBot(BotConfig config, UserCatRepository userCatRepository, UserDogRepository userDogRepository) {
+    public TelegramBotUpdatesListener(BotConfig config, UserCatRepository userCatRepository, UserDogRepository userDogRepository) {
         this.userCatRepository = userCatRepository;
         this.userDogRepository = userDogRepository;
         this.config = config;
+
+
 //         Создание кнопки меню (все команды должны быть написаны в нижнем регистре)
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/start", "Приветствует пользователя"));
@@ -73,14 +83,61 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
+
+        com.pengrad.telegrambot.model.Update update1 = new com.pengrad.telegrambot.model.Update();
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             String userName = update.getMessage().getChat().getFirstName();
             long chatId = update.getMessage().getChatId();
 
-            if (update.getMessage().getPhoto() != null && update.getMessage() != null){
-                getReport(update);
+
+
+            Calendar calendar = new GregorianCalendar();
+            daysOfReports = reportRepository.findAll().stream()
+                    .filter(s -> s.getChatId() == chatId)
+                    .count() + 1;
+            try {
+                long compareTime = calendar.get(Calendar.DAY_OF_MONTH);
+
+                Long lastMessageTime = reportRepository.findAll().stream()
+                        .filter(s -> s.getChatId() == chatId)
+                        .map(ReportData::getLastMessageMs)
+                        .max(Long::compare)
+                        .orElseGet(() -> null);
+                if (lastMessageTime != null) {
+                    Date lastDateSendMessage = new Date(lastMessageTime * 1000);
+                    long numberOfDay = lastDateSendMessage.getDate();
+
+                    if (daysOfReports < 30) {
+                        if (compareTime != numberOfDay) {
+                            if (update.getMessage() != null && update.getMessage().getPhoto() != null && update.getMessage().getCaption() != null) {
+                                getReport(update1);
+                            }
+                        } else {
+                            if (update.getMessage() != null && update.getMessage().getPhoto() != null && update.getMessage().getCaption() != null) {
+                                sendMessage(chatId, "Вы уже отправляли отчет сегодня");
+                            }
+                        }
+                        if (daysOfReports == 31) {
+                            sendMessage(chatId, "Вы прошли испытательный срок!");
+                        }
+                    }
+                } else {
+                    if (update.getMessage() != null && update.getMessage().getPhoto() != null && update.getMessage().getCaption() != null) {
+                        getReport(update1);
+                    }
+                }
+                if (update.getMessage() != null && update.getMessage().getPhoto() != null && update.getMessage().getCaption() == null) {
+                    sendMessage(chatId, "Отчет нужно присылать с описанием!");
+                }
+            } catch (NullPointerException e) {
+                System.out.println("Ошибка");
             }
+
+
+
+
+
 
             switch (messageText) {
 //                При выполнении команды старт Бот приветствует пользователя и предлагает ему выбрать,
@@ -920,15 +977,120 @@ public class TelegramBot extends TelegramLongPollingBot {
         return chatIdList.get(randValue);
     }
 
-    public void getReport(Update update) {
-        long chatId = update.getMessage().getChatId();
+    public void getReport (com.pengrad.telegrambot.model.Update update) {
         Pattern pattern = Pattern.compile(REGEX_MESSAGE);
-        Matcher matcher = pattern.matcher(update.getMessage().getCaption());
-        if (matcher.find()) {
-            sendMessage(chatId,"Отчет принят");
+        Matcher matcher = pattern.matcher(update.message().caption());
+        if (matcher.matches()) {
+            String ration = matcher.group(3);
+            String health = matcher.group(7);
+            String habits = matcher.group(11);
+
+            GetFile getFileRequest = new GetFile(update.message().photo()[1].fileId());
+            GetFileResponse getFileResponse = telegramBot.execute(getFileRequest);
+            try {
+                File file = getFileResponse.file();
+                file.fileSize();
+                String fullPathPhoto = file.filePath();
+
+                long timeDate = update.message().date();
+                Date dateSendMessage = new Date(timeDate * 1000);
+                byte[] fileContent = telegramBot.getFileContent(file);
+                reportDataService.uploadReportData(update.message().chat().id(), fileContent, file,
+                        ration, health, habits, fullPathPhoto, dateSendMessage, timeDate, daysOfReports);
+
+                telegramBot.execute(new com.pengrad.telegrambot.request.SendMessage(update.message().chat().id(), "Отчет успешно принят!"));
+
+                System.out.println("Отчет успешно принят от: " + update.message().chat().id());
+            } catch (IOException e) {
+                System.out.println("Ошибка загрузки фото!");
+            }
         } else {
-            sendMessage(chatId, "Некоррекнтный отчет");
+            GetFile getFileRequest = new GetFile(update.message().photo()[1].fileId());
+            GetFileResponse getFileResponse = telegramBot.execute(getFileRequest);
+            try {
+                File file = getFileResponse.file();
+                file.fileSize();
+                String fullPathPhoto = file.filePath();
+
+                long timeDate = update.message().date();
+                Date dateSendMessage = new Date(timeDate * 1000);
+                byte[] fileContent = telegramBot.getFileContent(file);
+                reportDataService.uploadReportData(update.message().chat().id(), fileContent, file, update.message().caption(),
+                        fullPathPhoto, dateSendMessage, timeDate, daysOfReports);
+
+                telegramBot.execute(new com.pengrad.telegrambot.request.SendMessage(update.message().chat().id(), "Отчет успешно принят!"));
+                System.out.println("Отчет успешно принят от: " + update.message().chat().id());
+            } catch (IOException e) {
+                System.out.println("Ошибка загрузки фото!");
+            }
         }
     }
-}
+
+    @Scheduled(cron = "* 30 21 * * *")
+    public void checkResults() {
+        if (daysOfReports < 30) {
+            var twoDay = 172800000;
+            var nowTime = new Date().getTime() - twoDay;
+            var getDistinct = this.reportRepository.findAll().stream()
+                    .sorted(Comparator
+                            .comparing(ReportData::getChatId))
+                    .max(Comparator
+                            .comparing(ReportData::getLastMessageMs));
+            getDistinct.stream()
+                    .filter(i -> i.getLastMessageMs() * 1000 < nowTime)
+                    .forEach(s -> sendMessage(s.getChatId(), "Вы забыли прислать отчет, скорее поторопитесь сделать это!"));
+        }
+    }
+
+
+
+   /* private void getReport(Update update) {
+        Pattern pattern = Pattern.compile(REGEX_MESSAGE);
+        Matcher matcher = pattern.matcher(update.getMessage().getCaption());
+        if (matcher.matches()) {
+            String ration = matcher.group(3);
+            String health = matcher.group(7);
+            String habits = matcher.group(11);
+
+            GetFile getFileRequest = new GetFile(update.getMessage().getPhoto().fileId());
+            GetFileResponse getFileResponse = telegramBot.execute(getFileRequest);
+            try {
+                File file = getFileResponse.file();
+                file.fileSize();
+                String fullPathPhoto = file.filePath();
+
+                long timeDate = update.message().date();
+                Date dateSendMessage = new Date(timeDate * 1000);
+                byte[] fileContent = telegramBot.getFileContent(file);
+                reportDataService.uploadReportData(update.message().chat().id(), fileContent, file,
+                        ration, health, habits, fullPathPhoto, dateSendMessage, timeDate, daysOfReports);
+
+                telegramBot.execute(new com.pengrad.telegrambot.request.SendMessage(update.message().chat().id(), "Отчет успешно принят!"));
+
+                System.out.println("Отчет успешно принят от: " + update.message().chat().id());
+            } catch (IOException e) {
+                System.out.println("Ошибка загрузки фото!");
+            }
+        } else {
+            GetFile getFileRequest = new GetFile(update.message().photo()[1].fileId());
+            GetFileResponse getFileResponse = telegramBot.execute(getFileRequest);
+            try {
+                File file = getFileResponse.file();
+                file.fileSize();
+                String fullPathPhoto = file.filePath();
+
+                long timeDate = update.message().date();
+                Date dateSendMessage = new Date(timeDate * 1000);
+                byte[] fileContent = telegramBot.getFileContent(file);
+                reportDataService.uploadReportData(update.message().chat().id(), fileContent, file, update.message().caption(),
+                        fullPathPhoto, dateSendMessage, timeDate, daysOfReports);
+
+                telegramBot.execute(new com.pengrad.telegrambot.request.SendMessage(update.message().chat().id(), "Отчет успешно принят!"));
+                System.out.println("Отчет успешно принят от: " + update.message().chat().id());
+            } catch (IOException e) {
+                System.out.println("Ошибка загрузки фото!");
+            }
+        }
+    }*/
+    }
 

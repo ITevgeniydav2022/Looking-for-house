@@ -13,7 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.team2.lookingforhouse.model.ReportDog;
 import ru.team2.lookingforhouse.service.ReportDogService;
-import ru.team2.lookingforhouse.service.TelegramBot;
+import ru.team2.lookingforhouse.service.TelegramBotUpdatesListener;
 /**
  * Класс контроллера объекта "Отчет данных пользователя, интересующегося собакой"
  *
@@ -24,11 +24,11 @@ import ru.team2.lookingforhouse.service.TelegramBot;
 @RestController
 @RequestMapping("report_dog")
 public class ReportDogController {
-    private final TelegramBot telegramBot;
+    private final TelegramBotUpdatesListener telegramBotUpdatesListener;
     private final ReportDogService reportDogService;
 
-    public ReportDogController(TelegramBot telegramBot, ReportDogService reportDogService) {
-        this.telegramBot = telegramBot;
+    public ReportDogController(TelegramBotUpdatesListener telegramBotUpdatesListener, ReportDogService reportDogService) {
+        this.telegramBotUpdatesListener = telegramBotUpdatesListener;
         this.reportDogService = reportDogService;
     }
     @Operation(summary = "Просмотр объекта \"Отчет о данных пользователя, интересующегося собакой\" по айди",
@@ -84,6 +84,6 @@ public class ReportDogController {
                                     @RequestParam Long id,
                                     @Parameter(description = "Ваше сообщение", example = "Приветствую вас, пурпурный человек!")
                                     @RequestParam String message) {
-        this.telegramBot.sendMessage(id, message);
+        this.telegramBotUpdatesListener.sendMessage(id, message);
     }
 }

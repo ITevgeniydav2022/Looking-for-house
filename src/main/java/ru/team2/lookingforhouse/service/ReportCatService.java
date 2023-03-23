@@ -1,5 +1,6 @@
 package ru.team2.lookingforhouse.service;
 
+import com.pengrad.telegrambot.model.File;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.PageRequest;
@@ -11,6 +12,7 @@ import ru.team2.lookingforhouse.repository.ReportCatRepository;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
 /**
@@ -135,4 +137,5 @@ public class ReportCatService {
         log.info("Был вызван метод получения расширения файла");
         return fileName.substring(fileName.lastIndexOf(".") + 1);
     }
+
 }
