@@ -174,11 +174,15 @@ public class TelegramBot extends TelegramLongPollingBot {
                 case DOG_BUTTON:
                     registerUserDog(update.getCallbackQuery().getMessage());
                     startDog(chatId);
+                    userDogRepository.findByChatId(chatId).setDog(true);
+                    userDogRepository.save(userDogRepository.findByChatId(chatId));
                     break;
                 /*Вызов кнопок, содержащих информацию по приюту для котов*/
                 case CAT_BUTTON:
                     registerUserCat(update.getCallbackQuery().getMessage());
                     startCat(chatId);
+                    userDogRepository.findByChatId(chatId).setDog(false);
+                    userDogRepository.save(userDogRepository.findByChatId(chatId));
                     break;
                 /*Общая информация о приюте для собак*/
                 case INFO_DOG_BUTTON:
@@ -407,7 +411,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 /*Сохранить контакты того, кто выбрал приют собак*/
                 case SAVE_CONTACT_BUTTON:
                     sendMessageWithContactKeyboard(chatId);
-                    //написать метод, который дубет сохранять в бд юзеров собак
+                    //написать метод, который будет сохранять в бд юзеров собак
                     break;
                 case SUBMIT_REPORT_BUTTON:
                     String infoAboutReport = """
@@ -436,8 +440,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 saveContactButton(update, true);
             }
             sendMessage(chatId, "Данные успешно сохранены");
-        }
-        else if (update.hasMessage() && (update.getMessage().hasPhoto() || update.getMessage().hasDocument())) {
+        } else if (update.hasMessage() && (update.getMessage().hasPhoto() || update.getMessage().hasDocument())) {
             long chatId = update.getMessage().getChatId();
             if (REQUEST_GET_REPLY_FROM_USER.contains(chatId) &&
                     userDogRepository.findByChatId(chatId) != null &&
@@ -449,16 +452,17 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
             } else if (REQUEST_GET_REPLY_FROM_USER.contains(chatId)) {
                 if (update.getMessage().getCaption() == null) {
-                    sendMessageWithInlineKeyboard(update.getMessage().getChatId(), MESSAGE_TEXT_NO_REPORT_TEXT, REPORT_EXAMPLE, SEND_REPORT);
+                    sendMessage(chatId, "Отсутствует текст, с описанием как живётся вашему питомцу! ");
+                    //sendMessageWithInlineKeyboard(update.getMessage().getChatId(), MESSAGE_TEXT_NO_REPORT_TEXT, REPORT_EXAMPLE, SEND_REPORT);
                 } else {
                     getReport(update, false);
-               }
+                }
 
             } else sendMessage(chatId, MESSAGE_TEXT_NO_COMMAND);
 
         } else if (update.hasMessage() && update.getMessage().hasContact()) {
             long chatId = update.getMessage().getChatId();
-            saveContactButton(update,true);
+            saveContactButton(update, true);
             sendMessage(chatId, MESSAGE_TEXT_SEND_CONTACT_SUCCESS);
         }
     }
@@ -992,7 +996,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!isDog) {
             UserCat persistentUserCat = userCatRepository.findByChatId(user.getId());
             if (persistentUserCat == null) {
-                UserCat transientUserCat= new UserCat();
+                UserCat transientUserCat = new UserCat();
                 transientUserCat.setChatId(user.getId());
                 transientUserCat.setFirstName(user.getFirstName());
                 transientUserCat.setLastName(user.getLastName());
@@ -1010,7 +1014,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         } else {
             UserDog persistentUserDog = userDogRepository.findByChatId(user.getId());
             if (persistentUserDog == null) {
-                UserDog transientUserDog= new UserDog();
+                UserDog transientUserDog = new UserDog();
                 transientUserDog.setChatId(user.getId());
                 transientUserDog.setFirstName(user.getFirstName());
                 transientUserDog.setLastName(user.getLastName());
@@ -1027,80 +1031,110 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
         }
     }
-        public static boolean validationPatternReport(String textRegEx) {
-            Pattern reportPattern = Pattern.compile(REGEX_MESSAGE);
-            Matcher reportMatcher = reportPattern.matcher(textRegEx);
-            return reportMatcher.matches();
-        }
-        public void getReport(Update update, boolean isDog) {
-            if (validationPatternReport(update.getMessage().getCaption())) {
-                String reportText = update.getMessage().getCaption();
-                String fileId;
-                if (update.getMessage().hasPhoto()) {
-                    List<PhotoSize> photoSizes = update.getMessage().getPhoto();
-                    PhotoSize photoSize = photoSizes.stream()
-                            .max(Comparator.comparing(PhotoSize::getFileSize)).orElse(null);
-                    assert photoSize != null;
-                    fileId = photoSize.getFileId();
-                } else {
-                    Document document = update.getMessage().getDocument();
-                    fileId = document.getFileId();
-                }
-                if (isDog) {
-                    UserDog userDog = userDogRepository.findByChatId(update.getMessage().getChatId());
-                    ReportDog reportDog = new ReportDog();
 
-                    reportDog.setPhotoId(fileId);
-                    reportDog.setInfoMessage(reportText);
-                    reportDog.setUserDog(userDog);
-                    userDog.getReports().add(reportDog);
-                    userDogRepository.save(userDog);
-                } else {
-                    UserCat userCat = userCatRepository.findByChatId(update.getMessage().getChatId());
-                    ReportCat reportCat = new ReportCat();
-                    reportCat.setPhotoId(fileId);
-                    reportCat.setInfoMessage(reportText);
-                    reportCat.setUserCat(userCat);
-                    userCat.getReports().add(reportCat);
-                    userCatRepository.save(userCat);
-                }
-                REQUEST_GET_REPLY_FROM_USER.remove(update.getMessage().getChatId());
-                sendMessage(update.getMessage().getChatId(), MESSAGE_THANKS_FOR_REPLY);
-            } else {
-                REQUEST_GET_REPLY_FROM_USER.remove(update.getMessage().getChatId());
-                sendMessageWithInlineKeyboard(update.getMessage().getChatId(), MESSAGE_TEXT_NOT_LIKE_EXAMPLE, REPORT_EXAMPLE, SEND_REPORT);
+    /**
+     * Метод изменяет состояние поля isDog - состояние выбранного приюта у Adopter
+     * Используются методы:<br>
+     *
+     * @param chatId идентификатор чата пользователя, который выбрал/сменил приют
+     * @param isDog  состояние выбранного приюта у User
+     */
+    public void changeUserStatusOfShelter(Long chatId, boolean isDog) {
+        UserDog userDog = userDogRepository.findByChatId(chatId);
+        UserCat userCat = userCatRepository.findByChatId(chatId);
+        if (isDog) {
+            if (userDog == null) {
+                userDog = new UserDog();
+                userDog.setChatId(chatId);
             }
-        }
-        public void sendMessageWithInlineKeyboard(long chatId, String textToSend, String... buttons) {
-            InlineKeyboardMarkup inlineKeyboard = InlineKeyboardMaker(buttons);
-            sendMessage(chatId, textToSend, inlineKeyboard);
-        }
-        public InlineKeyboardMarkup InlineKeyboardMaker(String... buttons) {
-            InlineKeyboardMarkup inlineKeyboardAbout = new InlineKeyboardMarkup();
-            List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
-            //создаем кнопки
-            for (String buttonText :
-                    buttons) {
-                InlineKeyboardButton button = new InlineKeyboardButton();
-                button.setText(buttonText);
-                button.setCallbackData(buttonText);
-                List<InlineKeyboardButton> rowInLine1 = new ArrayList<>();
-                rowInLine1.add(button);
-                rowsInLine.add(rowInLine1);
+            userDog.setDog(true);
+            userDogRepository.save(userDog);
+            if (userCat != null) {
+                userCat.setDog(true);
+                userCatRepository.save(userCat);
             }
-            inlineKeyboardAbout.setKeyboard(rowsInLine);
-
-            return inlineKeyboardAbout;
-        }
-
-    public void getReport(Update update) {
-        Pattern pattern = Pattern.compile(REGEX_MESSAGE);
-        Matcher matcher = pattern.matcher(update.getMessage().getCaption());
-        if (matcher.matches()) {
-            String ration = matcher.group(3);
-            String health = matcher.group(7);
-            String habits = matcher.group(11);
+        } else {
+            if (userCat == null) {
+                userCat = new UserCat();
+                userCat.setChatId(chatId);
+            }
+            userCat.setDog(false);
+            userCatRepository.save(userCat);
+            if (userDog != null) {
+                userDog.setDog(false);
+                userDogRepository.save(userDog);
+            }
         }
     }
+
+    public static boolean validationPatternReport(String textRegEx) {
+        Pattern reportPattern = Pattern.compile(REGEX_MESSAGE);
+        Matcher reportMatcher = reportPattern.matcher(textRegEx);
+        return reportMatcher.matches();
+    }
+
+    public void getReport(Update update, boolean isDog) {
+        if (validationPatternReport(update.getMessage().getCaption())) {
+            String reportText = update.getMessage().getCaption();
+            String fileId;
+            if (update.getMessage().hasPhoto()) {
+                List<PhotoSize> photoSizes = update.getMessage().getPhoto();
+                PhotoSize photoSize = photoSizes.stream()
+                        .max(Comparator.comparing(PhotoSize::getFileSize)).orElse(null);
+                assert photoSize != null;
+                fileId = photoSize.getFileId();
+            } else {
+                Document document = update.getMessage().getDocument();
+                fileId = document.getFileId();
+            }
+            if (isDog) {
+                UserDog userDog = userDogRepository.findByChatId(update.getMessage().getChatId());
+                ReportDog reportDog = new ReportDog();
+
+                reportDog.setPhotoId(fileId);
+                reportDog.setInfoMessage(reportText);
+                reportDog.setUserDog(userDog);
+                userDog.getReports().add(reportDog);
+                userDogRepository.save(userDog);
+            } else {
+                UserCat userCat = userCatRepository.findByChatId(update.getMessage().getChatId());
+                ReportCat reportCat = new ReportCat();
+                reportCat.setPhotoId(fileId);
+                reportCat.setInfoMessage(reportText);
+                reportCat.setUserCat(userCat);
+                userCat.getReports().add(reportCat);
+                userCatRepository.save(userCat);
+            }
+            REQUEST_GET_REPLY_FROM_USER.remove(update.getMessage().getChatId());
+            sendMessage(update.getMessage().getChatId(), MESSAGE_THANKS_FOR_REPLY);
+        } else {
+            REQUEST_GET_REPLY_FROM_USER.remove(update.getMessage().getChatId());
+            sendMessageWithInlineKeyboard(update.getMessage().getChatId(), MESSAGE_TEXT_NOT_LIKE_EXAMPLE, REPORT_EXAMPLE, SEND_REPORT);
+        }
+    }
+
+    public void sendMessageWithInlineKeyboard(long chatId, String textToSend, String... buttons) {
+        InlineKeyboardMarkup inlineKeyboard = InlineKeyboardMaker(buttons);
+        sendMessage(chatId, textToSend, inlineKeyboard);
+    }
+
+    public InlineKeyboardMarkup InlineKeyboardMaker(String... buttons) {
+        InlineKeyboardMarkup inlineKeyboardAbout = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
+        //создаем кнопки
+        for (String buttonText :
+                buttons) {
+            InlineKeyboardButton button = new InlineKeyboardButton();
+            button.setText(buttonText);
+            button.setCallbackData(buttonText);
+            List<InlineKeyboardButton> rowInLine1 = new ArrayList<>();
+            rowInLine1.add(button);
+            rowsInLine.add(rowInLine1);
+        }
+        inlineKeyboardAbout.setKeyboard(rowsInLine);
+
+        return inlineKeyboardAbout;
+    }
+
 }
 

@@ -22,10 +22,13 @@ public class UserCat {
     private String phoneNumber;
     private LocalDateTime registeredAt;
 
+    @Column(name = "is_dog")
+    private boolean isDog;
+
     @Convert(converter = StatusAttributeConverter.class)
     private UserStatus userStatus;
 
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "userCat")
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "userCat", fetch = FetchType.EAGER)
     List<ReportCat> reports;
 
 }

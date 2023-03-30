@@ -29,7 +29,7 @@ public class UserDog {
     @Convert(converter = StatusAttributeConverter.class)
     private UserStatus userStatus;
 
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "userDog")
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "userDog", fetch = FetchType.EAGER)
     private List<ReportDog> reports;
 
     public boolean isDog() {
