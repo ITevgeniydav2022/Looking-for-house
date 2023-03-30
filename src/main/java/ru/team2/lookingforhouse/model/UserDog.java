@@ -23,10 +23,16 @@ public class UserDog {
     private String userName;
     private String phoneNumber;
     private LocalDateTime registeredAt;
+    @Column(name = "is_dog")
+    private boolean isDog;
 
     @Convert(converter = StatusAttributeConverter.class)
     private UserStatus userStatus;
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "userDog")
     private List<ReportDog> reports;
+
+    public boolean isDog() {
+        return isDog;
+    }
 }

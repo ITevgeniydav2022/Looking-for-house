@@ -1,5 +1,7 @@
 package ru.team2.lookingforhouse.util;
 
+import java.util.HashSet;
+
 public class Constant {
 
    public final static String DOG_BUTTON = "DOG_BUTTON";
@@ -34,6 +36,15 @@ public class Constant {
    public final static String REASONS_FOR_REFUSAL_BUTTON = "REASONS_FOR_REFUSAL_BUTTON";
    public final static String SAVE_CONTACT_BUTTON = "SAVE_CONTACT_BUTTON";
 
+   public static final HashSet<Long> REQUEST_GET_REPLY_FROM_USER = new HashSet<>();
+   public static final String MESSAGE_THANKS_FOR_REPLY = "Благодарим за отчет, волонтер проверит его и " +
+           "если что-то будет не так, даст Вам обратную связь";
+   public static final String MESSAGE_TEXT_NOT_LIKE_EXAMPLE = "Текст отчета не соответствует шаблону, пожалуйста заполните текст отчета по образцу";
+   public static final String REPORT_EXAMPLE = "Образец отчета";
+   public static final String SEND_REPORT = "Отправить отчет";
+   public static final String MESSAGE_TEXT_NO_REPORT_TEXT = "Вы отправили только фото, необходимо добавить подпись к фото с текстом отчета по шаблону";
+   public static final String MESSAGE_TEXT_NO_COMMAND = "Нет такой команды";
+   public static final String MESSAGE_TEXT_SEND_CONTACT_SUCCESS = "Данные успешно отправлены";
    public static final String REGEX_MESSAGE = "(Рацион:)(\\s)(\\W+)(;)\n" +
            "(Самочувствие:)(\\s)(\\W+)(;)\n" +
            "(Поведение:)(\\s)(\\W+)(;)";
